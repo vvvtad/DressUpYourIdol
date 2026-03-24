@@ -3,6 +3,7 @@ import tkinter as tk
 import tkinter.messagebox as mb
 import pygame as py
 import sqlite3
+import random
 from datetime import datetime
 
 #Font Styles
@@ -77,15 +78,15 @@ class DataBase:
         return self.cursor.fetchall()
 
 #Idol Selection
-class characterSelection:
+class characterSelection(Toplevel):
     def __init__(self, parent, selected_character):
-        self.characterselect = tk.Toplevel(parent)
-        self.characterselect.title("Dress Up Your Idol!")
-        self.characterselect.geometry("1000x700")
+        super().__init__(parent)
+        self.title("Dress Up Your Idol!")
+        self.geometry("1000x700")
 
         self.bg = PhotoImage(file="Background-Select.png")
 
-        self.idolbg = Canvas(self.characterselect, width=1000, height=700)
+        self.idolbg = Canvas(self, width=1000, height=700)
         self.idolbg.create_image(0, 0, image=self.bg, anchor='nw')
         self.idolbg.pack(fill="both", expand=True)
 
@@ -108,11 +109,11 @@ class characterSelection:
 
             # Zooming the image to make it significantly larger
             # .zoom(3, 3) makes it 3x original size. Adjust if needed.
-            full_img = PhotoImage(file=f"{char_name}.png")
-            display_img = full_img.zoom(3, 3) 
+            sprite = PhotoImage(file=f"{char_name}.png")
+            resized_sprite = sprite.zoom(3, 3) 
                 
-            self.img_refs.append(display_img)
-            img_label = Label(char_container, image=display_img)
+            self.img_refs.append(resized_sprite)
+            img_label = Label(char_container, image=resized_sprite)
 
             img_label.pack(pady=15)
 
@@ -126,15 +127,41 @@ class characterSelection:
     def selectCharacter(self):
         try:
             character = self.selected_character.get()
-            playGame(self.characterselect.master, character)
+
+            if character == "":
+                raise ValueError
+
+            mb.showinfo("Selection Saved", f"Ready to play with {self.selected_character.get()}!")
+            self.destroy()
+            playGame(self.master, character)
+
         except ValueError:
             mb.showwarning("Selection Error", "No characters selected")
 
+        except Exception as e:
+        #Catches other errors
+            print(f"An unexpected error occurred: {e}")
 
-class playGame:
+
+class playGame(tk.Toplevel):
     def __init__(self, parent, character):
-        self.character = character
-        self.frame = Frame(parent)
+        super().__init__(parent)
+        self.title("Dress Up Your Idol!")
+        self.geometry("700x700")
+
+        self.bg = py.image.load("Dressing Room.png")
+
+        self.idolbg = Canvas(self, width=700, height=700)
+        self.idolbg.create_image(0, 0, image=self.bg, anchor='nw')
+        self.idolbg.pack(fill="both", expand=True)
+
+        self.score = 0
+        self.lives = 3
+        self.items = []
+        
+        sprite = py.image.load(f"{character}.png")
+        self.resized_sprite = sprite.transform.scale(300, 300)
+
 
 #Gets Player Name after the game ends
 class getName:
@@ -197,7 +224,7 @@ class LeaderboardPanel:
         Label(header_frame, text="Score", width = 10).pack(side=LEFT)
         Label(header_frame, text="Date", width = 15).pack(side=LEFT)
         
-        self.scores_frame = Frame(self.bg_canvas)
+        self.scores_frame = Frame(self.bg_canvas, background="#f2776a")
         self.bg_canvas.create_window(350, 350, window=self.scores_frame, width=500)
         
         self.score_widgets = []
@@ -273,11 +300,18 @@ class Settings:
             highlightthickness=0
         )
         self.volume_slider.set(50)
+
+        self.is_muted = False
         
-        self.mute_btn = Button(
+        self.mute_btn = tk.Checkbutton(
             self.bg_canvas,
             text="Mute Music",
-            command=self.toggle_music
+            variable = self.is_muted,
+            command=self.toggle_music,
+            font = ("Comic Sans Ms", 28, "bold"),
+            background= "#f2776a",
+            foreground= "white",
+            activebackground="#f2776a"
         )
         
         close_btn = Button(
@@ -291,8 +325,6 @@ class Settings:
         self.bg_canvas.create_window(350, 280, window=self.volume_slider)
         self.bg_canvas.create_window(350, 350, window=self.mute_btn)
         self.bg_canvas.create_window(350, 420, window=close_btn)
-         
-        self.is_muted = False
 
     def show(self):
         self.frame.place(x=0, y=0, relwidth=1, relheight=1)
@@ -309,13 +341,11 @@ class Settings:
 
     def toggle_music(self):
         if self.is_muted:
-            py.mixer.music.set_volume(self.volume_slider.get() / 100)
-            self.mute_btn.config(text="Mute Music ")
-            self.is_muted = False
-        else:
             py.mixer.music.set_volume(0)
-            self.mute_btn.config(text="Unmute Music ")
             self.is_muted = True
+        else:
+            py.mixer.music.set_volume(self.volume_slider.get() / 100)
+            self.is_muted = False
 
 # Main Application
 top = tk.Tk()
@@ -347,6 +377,7 @@ def on_name_submitted(name):
     show_leaderboard()
 
 def start_game_flow():
+    top.withdraw()
     """Triggered on startup to ask for name."""
     characterSelection(top, selected_character)
 
