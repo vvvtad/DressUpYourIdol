@@ -47,156 +47,251 @@ class Label(tk.Label):
 
 #Database
 class DataBase:
+
     def __init__(self):
+
         self.db = sqlite3.connect("scores.db")
         self.cursor = self.db.cursor()
-        self.setup_database()
 
-    def setup_database(self):
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS scores(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            player TEXT,
-            score INTEGER,
-            date TEXT
-        )
+        id INTEGER PRIMARY KEY,
+        player TEXT,
+        score INTEGER,
+        date TEXT)
         """)
+
         self.db.commit()
 
     def add_score(self, player, score):
-        date_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        date = datetime.now().strftime("%Y-%m-%d %H:%M")
+
         self.cursor.execute(
-            "INSERT INTO scores (player, score, date) VALUES (?, ?, ?)",
-            (player, score, date_now)
+            "INSERT INTO scores(player,score,date) VALUES(?,?,?)",
+            (player, score, date)
         )
+
         self.db.commit()
 
     def get_scores(self):
+
         self.cursor.execute(
-            "SELECT player, score, date FROM scores ORDER BY score DESC LIMIT 10"
+            "SELECT player,score,date FROM scores ORDER BY score DESC LIMIT 10"
         )
+
         return self.cursor.fetchall()
 
 #Idol Selection
-class characterSelection(Toplevel):
+class characterSelection:
+
     def __init__(self, parent, selected_character):
-        super().__init__(parent)
-        self.title("Dress Up Your Idol!")
-        self.geometry("1000x700")
+
+        selected_character.set("")   # FIX
+
+        self.win = tk.Toplevel(parent)
+        self.win.geometry("1000x700")
+        self.win.grab_set()
 
         self.bg = PhotoImage(file="Background-Select.png")
 
-        self.idolbg = Canvas(self, width=1000, height=700)
-        self.idolbg.create_image(0, 0, image=self.bg, anchor='nw')
-        self.idolbg.pack(fill="both", expand=True)
+        self.canvas = Canvas(self.win, width=1000, height=700)
+        self.canvas.pack()
+
+        self.canvas.create_image(0, 0, image=self.bg, anchor="nw")
 
         self.selected_character = selected_character
+
         self.characters = ["Gelo", "Akira", "Mikki", "Nate", "JL"]
-        self.img_refs = []
-        
-        title = Title(self.idolbg, text = "Choose Your Bias")
-        self.idolbg.create_window(500, 95, window=title)
 
-        confirm = Button(self.idolbg, text="Confirm", command=self.selectCharacter)
-        self.idolbg.create_window(500, 600, window=confirm)
+        self.imgs = []
 
-        selection_container = Frame(self.idolbg, highlightthickness=0, bg="#f2776a")
-        self.idolbg.create_window(500, 350, window=selection_container)
+        title = Title(self.canvas, text="Choose Idol")
+        self.canvas.create_window(500, 80, window=title)
 
-        for i, char_name in enumerate(self.characters):
-            char_container = Frame(selection_container, bg="#f2776a")
-            char_container.pack(side=LEFT, expand=True, padx=10)
+        frame = Frame(self.canvas, bg="#f2776a")
+        self.canvas.create_window(500, 350, window=frame)
 
-            # Zooming the image to make it significantly larger
-            # .zoom(3, 3) makes it 3x original size. Adjust if needed.
-            sprite = PhotoImage(file=f"{char_name}.png")
-            resized_sprite = sprite.zoom(3, 3) 
-                
-            self.img_refs.append(resized_sprite)
-            img_label = Label(char_container, image=resized_sprite)
+        for name in self.characters:
 
-            img_label.pack(pady=15)
+            f = Frame(frame, bg="#f2776a")
+            f.pack(side=LEFT, padx=10)
+
+            img = PhotoImage(file=f"{name}.png")
+            img = img.zoom(3, 3)
+
+            self.imgs.append(img)
+
+            Label(f, image=img, bg="#f2776a").pack()
 
             tk.Radiobutton(
-                char_container, text=char_name, variable=self.selected_character,
-                value=char_name, font=("Comic Sans MS", 20, "bold"),
-                bg="#f2776a", 
-                activebackground="#f2776a",
+                f,
+                text=name,
+                variable=self.selected_character,
+                value=name,
+                indicatoron=False,
+                bg="#f2776a",
+                font=("Comic Sans MS", 16)
             ).pack()
 
-    def selectCharacter(self):
-        try:
-            character = self.selected_character.get()
+        btn = Button(
+            self.canvas,
+            text="Confirm",
+            command=self.confirm
+        )
 
-            if character == "":
-                raise ValueError
+        self.canvas.create_window(500, 600, window=btn)
 
-            mb.showinfo("Selection Saved", f"Ready to play with {self.selected_character.get()}!")
-            self.destroy()
-            playGame(self.master, character)
+    def confirm(self):
 
-        except ValueError:
-            mb.showwarning("Selection Error", "No characters selected")
+        char = self.selected_character.get()
 
-        except Exception as e:
-        #Catches other errors
-            print(f"An unexpected error occurred: {e}")
+        if not char:
+            mb.showwarning("Error", "Select idol")
+            return
+
+        self.win.destroy()
+
+        playGame(char, db)
 
 
-class playGame(tk.Toplevel):
-    def __init__(self, parent, character):
-        super().__init__(parent)
-        self.title("Dress Up Your Idol!")
-        self.geometry("700x700")
+class playGame:
 
-        self.bg = py.image.load("Dressing Room.png")
+    def __init__(self, char, db):
 
-        self.idolbg = Canvas(self, width=700, height=700)
-        self.idolbg.create_image(0, 0, image=self.bg, anchor='nw')
-        self.idolbg.pack(fill="both", expand=True)
+        py.init()
+
+        self.screen = py.display.set_mode((800, 600))
+
+        self.clock = py.time.Clock()
+
+        self.db = db
 
         self.score = 0
         self.lives = 3
+
+        self.x = 350
+
         self.items = []
         
-        sprite = py.image.load(f"{character}.png")
-        self.resized_sprite = sprite.transform.scale(300, 300)
+
+        self.bg = py.image.load("Dressing Room.png")
+        self.bg = py.transform.scale(self.bg, (800, 600))
+
+        self.life = py.image.load("bgyo-con.png")
+        self.life = py.transform.scale(self.life, (40, 40))
+
+        img = py.image.load(f"{char}.png")
+        self.player = py.transform.scale(img, (100, 120))
 
 
-#Gets Player Name after the game ends
-class getName:
-    def __init__(self, callback):
-        self.title("Dress Up Your Idol!")
-        self.geometry("400x200")
-        self.resizable(True, True)
-        self.configure(background="#f44a28")
-
-        self.callback = callback
-
-        self.update_idletasks()
-        x = (self.winfo_screenwidth() // 2) - (400 // 2)
-        y = (self.winfo_screenheight() // 2) - (300 // 2)
-        self.geometry(f'+{x}+{y}')
         
-        label = tk.Label(self, text="Enter Your Name: ", font=("Comic Sans MS", 15), foreground= "white", background = "#f44a28")
-        label.pack()
+        self.clothes_images = []
+        for i in range(1, 11):  # Correctly loops from cloth1 to cloth10
+            try:
+                # Load the image
+                cloth = py.image.load(f"cloth{i}.png").convert_alpha()
+                
+                # Scale them up (e.g., 80x80 or 100x100 instead of 50x50)
+                # Adjust these numbers based on the desired visual size
+                cloth = py.transform.scale(cloth, (150, 150)) 
+                
+                self.clothes_images.append(cloth)
+            except py.error: # Pygame specific error handling
+                print(f"Warning: cloth{i}.png not found")
         
-        self.entry = Entry(self, font=("Comic Sans MS", 15))
-        self.entry.pack()
-        self.entry.focus()
+        # Fallback if no images were loaded at all
+        if not self.clothes_images:
+            fallback = py.Surface((80, 80))
+            fallback.fill((255, 0, 0))
+            self.clothes_images.append(fallback)
+ 
         
-        btn = Button(self, text="Continue ", command=self.submit_name)
-        btn.pack(pady=20)
-        
-        self.bind('<Return>', lambda a: self.submit_name())
+        # Fallback if no images loaded
+        if not self.clothes_images:
+            fallback = py.Surface((50, 50))
+            fallback.fill((255, 0, 0))
+            self.clothes_images.append(fallback)
 
-    def submit_name(self):
-        name = self.entry.get().strip()
-        if name:
-            self.callback(name)
-            self.destroy()
-        else:
-             mb.showwarning("Input Error ", "Please enter a valid name. ")
+        self.run()
+
+    def run(self):
+
+        font = py.font.SysFont("Comic Sans MS", 25)
+
+        while self.lives > 0:
+
+            self.screen.blit(self.bg, (0, 0))
+
+            for e in py.event.get():
+                if e.type == py.QUIT:
+                    self.lives = 0
+
+            keys = py.key.get_pressed()
+
+            if keys[py.K_LEFT]and self.x > 0:
+                self.x -= 10
+
+            if keys[py.K_RIGHT] and self.x < 700:
+                self.x += 10
+
+            if random.randint(1, 30) == 1:
+                # FIX: Store both position AND random clothing image
+                self.items.append([
+                    random.randint(50, 750),  # x position
+                    -50,                       # y position
+                    random.choice(self.clothes_images)  # random clothing image
+                ])
+
+            for item in self.items[:]:
+
+                item[1] += 4.5 # Fall down
+
+                player_rect = py.Rect(self.x, 450, 100, 120)
+                item_rect = py.Rect(item[0], item[1], 125, 125)
+
+                if player_rect.colliderect(item_rect):
+                    self.score += 10
+                    self.items.remove(item)
+
+                elif item[1] > 600:
+                    self.lives -= 1
+                    self.items.remove(item)
+
+            self.screen.blit(self.player, (self.x, 450))
+
+            # FIX: Draw the clothing image (item[2] is the image)
+            for item in self.items:
+                self.screen.blit(item[2], (item[0], item[1]))
+
+            txt = font.render(
+                f"Score: {self.score}",
+                True,
+                (0,0,0)
+            )
+
+            self.screen.blit(txt, (20, 20))
+
+            for i in range(self.lives):
+                self.screen.blit(
+                    self.life,
+                    (20 + i * 45, 60)
+                )
+
+            py.display.flip()
+            self.clock.tick(60)
+
+        py.display.quit()
+
+        name = sd.askstring(
+            "Game Over",
+            "Enter name"
+        )
+
+        if not name:
+            name = "Guest"
+
+        self.db.add_score(name, self.score)
 
 #Displays Leaderboard
 class LeaderboardPanel:
