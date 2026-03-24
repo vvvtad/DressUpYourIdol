@@ -1,10 +1,49 @@
 from tkinter import *
 import tkinter as tk
 import tkinter.messagebox as mb
-import pygame as py
 import sqlite3
 from datetime import datetime
 
+#Font Styles
+class Button(tk.Button):
+    def __init__(self, top=None, **kwargs):
+        super().__init__(top, **kwargs)
+        self.config(
+            highlightthickness=0,
+            padx=10,
+            pady=5,
+            font=("Comic Sans MS", 15),
+            foreground="white",
+            background="#f2a445"
+        )
+        self.bind("<Enter>", self.on_hover)
+        self.bind("<Leave>", self.on_leave)
+
+    def on_hover(self, event):
+        self.config(background="#f44a28")
+
+    def on_leave(self, event):
+        self.config(background="#f2a445")
+
+class Title(tk.Label):
+    def __init__(self, top=None, **kwargs):
+        super().__init__(top, **kwargs)
+        self.config(
+            font=("Comic Sans MS", 28, "bold"),
+            foreground="white",
+            background="#f2776a"
+        )
+
+class Label(tk.Label):
+    def __init__(self, top=None, **kwargs):
+        super().__init__(top, **kwargs)
+        self.config(
+            font=("Comic Sans MS", 15),
+            foreground="white",
+            background="#f2776a"
+        )
+
+#Database
 class DataBase:
     def __init__(self):
         self.db = sqlite3.connect("scores.db")
@@ -36,80 +75,136 @@ class DataBase:
         )
         return self.cursor.fetchall()
 
-class NameEntry:
-    def __init__(self, parent, callback):
-        self.dialog = tk.Toplevel(parent)
-        self.dialog.title("Enter Player Name")
-        self.dialog.geometry("400x300")
-        self.dialog.resizable(False, False)
+#Idol Selection
+class characterSelection:
+    def __init__(self, parent, selected_character):
+        self.characterselect = tk.Toplevel(parent)
+        self.characterselect.title("Dress Up Your Idol!")
+        self.characterselect.geometry("1000x700")
+
+        self.bg = PhotoImage(file="Background-Select.png")
+
+        self.idolbg = Canvas(self.characterselect, width=1000, height=700)
+        self.idolbg.create_image(0, 0, image=self.bg, anchor='nw')
+        self.idolbg.pack(fill="both", expand=True)
+
+        self.selected_character = selected_character
+        self.characters = ["Gelo", "Akira", "Mikki", "Nate", "JL"]
+        self.img_refs = []
+        
+        title = Title(self.idolbg, text = "Choose Your Bias")
+        self.idolbg.create_window(500, 95, window=title)
+
+        confirm = Button(self.idolbg, text="Confirm", command=self.selectCharacter)
+        self.idolbg.create_window(500, 600, window=confirm)
+
+        selection_container = Frame(self.idolbg, highlightthickness=0, bg="#f2776a")
+        self.idolbg.create_window(500, 350, window=selection_container)
+
+        for i, char_name in enumerate(self.characters):
+            char_container = Frame(selection_container, bg="#f2776a")
+            char_container.pack(side=LEFT, expand=True, padx=10)
+
+            # Zooming the image to make it significantly larger
+            # .zoom(3, 3) makes it 3x original size. Adjust if needed.
+            full_img = PhotoImage(file=f"{char_name}.png")
+            display_img = full_img.zoom(3, 3) 
+                
+            self.img_refs.append(display_img)
+            img_label = Label(char_container, image=display_img)
+
+            img_label.pack(pady=15)
+
+            tk.Radiobutton(
+                char_container, text=char_name, variable=self.selected_character,
+                value=char_name, font=("Comic Sans MS", 20, "bold"),
+                bg="#f2776a", 
+                activebackground="#f2776a",
+            ).pack()
+
+    def selectCharacter(self):
+        try:
+            character = self.selected_character.get()
+            playGame(self.characterselect.master, character)
+        except ValueError:
+            mb.showwarning("Selection Error", "No characters selected")
+
+
+class playGame:
+    def __init__(self, parent, character):
+        self.character = character
+        self.frame = Frame(parent)
+
+#Gets Player Name after the game ends
+class getName:
+    def __init__(self, callback):
+        self.title("Dress Up Your Idol!")
+        self.geometry("400x200")
+        self.resizable(True, True)
+        self.configure(background="#f44a28")
+
         self.callback = callback
-        self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (400 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (300 // 2)
-        self.dialog.geometry(f'+{x}+{y}')
+
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - (400 // 2)
+        y = (self.winfo_screenheight() // 2) - (300 // 2)
+        self.geometry(f'+{x}+{y}')
         
-        label = Label(self.dialog, text="Enter Your Name: ", font=("Comic Sans MS", 16))
-        label.pack(pady=20)
+        label = tk.Label(self, text="Enter Your Name: ", font=("Comic Sans MS", 15), foreground= "white", background = "#f44a28")
+        label.pack()
         
-        self.entry = Entry(self.dialog, font=("Comic Sans MS", 14))
-        self.entry.pack(pady=10)
+        self.entry = Entry(self, font=("Comic Sans MS", 15))
+        self.entry.pack()
         self.entry.focus()
         
-        btn = Button(self.dialog, text="Continue ", command=self.submit_name,
-                    font=("Comic Sans MS", 12), bg="#f2a445", fg="#fff")
+        btn = Button(self, text="Continue ", command=self.submit_name)
         btn.pack(pady=20)
         
-        self.dialog.bind('<Return>', lambda event: self.submit_name())
+        self.bind('<Return>', lambda a: self.submit_name())
 
     def submit_name(self):
         name = self.entry.get().strip()
         if name:
             self.callback(name)
-            self.dialog.destroy()
+            self.destroy()
         else:
              mb.showwarning("Input Error ", "Please enter a valid name. ")
 
+#Displays Leaderboard
 class LeaderboardPanel:
-    def __init__(self, parent, canvas, menu_items, bg_image, db_instance):
+    def __init__(self, parent, canvas, menu_items, db_instance):
         self.parent = parent
         self.canvas = canvas
         self.menu_items = menu_items
-        self.bg_image = bg_image
         self.db = db_instance
+        self.bg_image = PhotoImage(file = r"Background.png")
         self.frame = Frame(parent)
         self.bg_canvas = Canvas(self.frame, width=700, height=700, highlightthickness=0)
         self.bg_canvas.pack(fill="both", expand=True)
         self.bg_canvas.create_image(0, 0, image=self.bg_image, anchor="nw")
-        self.bg_canvas.image = self.bg_image
         
-        title = Label(
+        title = Title(
             self.bg_canvas,
-            text="🏆 LEADERBOARD 🏆 ",
-            font=("Comic Sans MS", 28, "bold"),
-            bg="#fff4e6",
-            fg="#222222"
+            text="LEADERBOARD"
         )
         
-        header_frame = Frame(self.bg_canvas, bg="#f2a445")
+        header_frame = Frame(self.bg_canvas)
         self.bg_canvas.create_window(350, 150, window=header_frame, width=500)
         
-        Label(header_frame, text="Rank ", width=5, bg="#f2a445", font=("Arial", 12, "bold")).pack(side=LEFT)
-        Label(header_frame, text="Player ", width=20, bg="#f2a445", font=("Arial", 12, "bold")).pack(side=LEFT)
-        Label(header_frame, text="Score ", width=10, bg="#f2a445", font=("Arial", 12, "bold")).pack(side=LEFT)
-        Label(header_frame, text="Date ", width=15, bg="#f2a445", font=("Arial", 12, "bold")).pack(side=LEFT)
+        Label(header_frame, text="Rank", width = 5).pack(side=LEFT)
+        Label(header_frame, text="Player", width = 20).pack(side=LEFT)
+        Label(header_frame, text="Score", width = 10).pack(side=LEFT)
+        Label(header_frame, text="Date", width = 15).pack(side=LEFT)
         
-        self.scores_frame = Frame(self.bg_canvas, bg="#fff4e6")
+        self.scores_frame = Frame(self.bg_canvas)
         self.bg_canvas.create_window(350, 350, window=self.scores_frame, width=500)
         
         self.score_widgets = []
         
-        back_btn = tk.Button(
+        back_btn = Button(
             self.bg_canvas,
-            text="← Back to Menu ",
-            font=("Comic Sans MS", 14),
+            text="Back to Menu",
             command=self.hide,
-            bg="#f44a28",
-            fg="white"
         )
         
         self.bg_canvas.create_window(350, 80, window=title)
@@ -136,51 +231,35 @@ class LeaderboardPanel:
         if self.db:
             scores = self.db.get_scores()
             if not scores:
-                Label(self.scores_frame, text="No scores yet! ", 
-                     font=("Comic Sans MS", 14), bg="#fff4e6").pack(pady=20)
+                Label(self.scores_frame, text="No scores yet!").pack(pady=20)
             else:
                 for i, (player, score, date) in enumerate(scores, 1):
-                    row_frame = Frame(self.scores_frame, bg="#fff4e6" if i % 2 == 0 else "white")
-                    row_frame.pack(fill="x", pady=2)
+                    row_frame = Frame(self.scores_frame)
+                    row_frame.pack(pady=2)
                     
-                    Label(row_frame, text=f"{i}. ", width=5, bg=row_frame.cget("bg"), 
-                         font=("Arial", 11)).pack(side=LEFT)
-                    Label(row_frame, text=player, width=20, bg=row_frame.cget("bg"), 
-                         font=("Arial", 11)).pack(side=LEFT)
-                    Label(row_frame, text=str(score), width=10, bg=row_frame.cget("bg"), 
-                         font=("Arial", 11, "bold")).pack(side=LEFT)
-                    Label(row_frame, text=date, width=15, bg=row_frame.cget("bg"), 
-                         font=("Arial", 9)).pack(side=LEFT)
+                    Label(row_frame, text=f"{i}. ", width=5).pack(side=LEFT)
+                    Label(row_frame, text=player, width=20).pack(side=LEFT)
+                    Label(row_frame, text=str(score), width=10).pack(side=LEFT)
+                    Label(row_frame, text=date, width=15).pack(side=LEFT)
                     
                     self.score_widgets.append(row_frame)
 
 class Settings:
-    def __init__(self, parent, canvas, menu_items, bg_image):
+    def __init__(self, parent, canvas, menu_items):
         self.parent = parent
         self.canvas = canvas
         self.menu_items = menu_items
-        self.bg_image = bg_image
+        self.bg_image = PhotoImage(file = r"Background.png")
         self.frame = Frame(parent)
         self.bg_canvas = Canvas(self.frame, width=700, height=700, highlightthickness=0)
-        self.bg_canvas.pack(fill="both", expand=True)
+        self.bg_canvas.pack(expand=True)
         self.bg_canvas.create_image(0, 0, image=self.bg_image, anchor="nw")
-        self.bg_canvas.image = self.bg_image
         
-        title = Label(
-            self.bg_canvas,
-            text="Settings ",
-            font=("Comic Sans MS", 28, "bold"),
-            bg="#fff4e6",
-            fg="#222222"
-        )
+        title = Title(
+            self.bg_canvas, text="Settings")
         
-        vol_label = Label(
-            self.bg_canvas,
-            text="Music Volume ",
-            font=("Comic Sans MS", 16),
-            bg="#fff4e6",
-            fg="#222222"
-        )
+        vol_label = Title(
+            self.bg_canvas, text="Music Volume")
         
         self.volume_slider = Scale(
             self.bg_canvas,
@@ -188,24 +267,21 @@ class Settings:
             to=100,
             orient="horizontal",
             command=self.change_volume,
-            bg="#fff4e6",
-            font=("Comic Sans MS", 12),
+            bg="#f2a445",
             length=250,
             highlightthickness=0
         )
         self.volume_slider.set(50)
         
-        self.mute_btn = tk.Button(
+        self.mute_btn = Button(
             self.bg_canvas,
-            text="Mute Music ",
-            font=("Comic Sans MS", 14),
+            text="Mute Music",
             command=self.toggle_music
         )
         
-        close_btn = tk.Button(
+        close_btn = Button(
             self.bg_canvas,
-            text="Close Settings ",
-            font=("Comic Sans MS", 14),
+            text="Close Settings",
             command=self.hide
         )
         
@@ -240,46 +316,26 @@ class Settings:
             self.mute_btn.config(text="Unmute Music ")
             self.is_muted = True
 
-class Button(tk.Button):
-    def __init__(self, top=None, **kwargs):
-        super().__init__(top, **kwargs)
-        self.config(
-            highlightthickness=0,
-            padx=10,
-            pady=5,
-            font=("Comic Sans MS", 15),
-            foreground="#f44a28",
-            background="#f2a445"
-        )
-        self.bind("<Enter>", self.on_hover)
-        self.bind("<Leave>", self.on_leave)
-
-    def on_hover(self, event):
-        self.config(foreground="#f2a445", background="#f44a28")
-
-    def on_leave(self, event):
-        self.config(foreground="#f44a28", background="#f2a445")
-
 # Main Application
 top = tk.Tk()
 top.title("Dress Up Your Idol!")
 top.geometry("700x700")
-top.resizable(False, False)
+top.resizable(True, True)
 
 db = DataBase()
 
-try:
-    menu = PhotoImage(file="Menu.png")
-except:
-    menu = PhotoImage(width=700, height=700)
+menu = PhotoImage(file="Menu.png")
 
 c = Canvas(top, width=700, height=700, highlightthickness=0)
 c.create_image(0, 0, image=menu, anchor='nw')
 c.pack(fill="both", expand=True)
 
 player_name_var = tk.StringVar(value="Guest")
+selected_character = tk.StringVar(value="")
 
-# --- Logic for Name Entry and Leaderboard Flow ---
+# ---Functions for events---
+def show_settings():
+    settings_panel.show()
 
 def show_leaderboard():
     leaderboard_panel.show()
@@ -291,20 +347,16 @@ def on_name_submitted(name):
 
 def start_game_flow():
     """Triggered on startup to ask for name."""
-    NameEntry(top, on_name_submitted)
+    characterSelection(top, selected_character)
 
-def start_game_action():
-    """Placeholder for starting the actual game."""
-    print(f"Player {player_name_var.get()} is starting the game...")
-    mb.showinfo("Game Start", f"Welcome {player_name_var.get()}! Game logic would start here.")
 
 # Buttons
-playbutton = Button(top, text="Play", command=start_game_action)
+playbutton = Button(top, text="Play", command = start_game_flow)
 scorebutton = Button(top, text="Score", command=show_leaderboard)
-settingsbutton = Button(top, text="Settings")
+settingsbutton = Button(top, text="Settings", command=show_settings)
 exitbutton = Button(top, text="Exit", command=top.destroy)
 
-# Positioning Buttons (Play added at the top)
+# Positioning Buttons
 playwindow = c.create_window(320, 340, anchor="nw", window=playbutton)
 scorewindow = c.create_window(310, 400, anchor="nw", window=scorebutton)
 settingswindow = c.create_window(300, 460, anchor="nw", window=settingsbutton)
@@ -314,11 +366,8 @@ exitwindow = c.create_window(320, 520, anchor="nw", window=exitbutton)
 menu_items = [playwindow, scorewindow, settingswindow, exitwindow]
 
 # Panels
-settings_panel = Settings(top, c, menu_items, menu)
-settingsbutton.config(command=settings_panel.show)
-
-# Create leaderboard panel
-leaderboard_panel = LeaderboardPanel(top, c, menu_items, menu, db)
+settings_panel = Settings(top, c, menu_items)
+leaderboard_panel = LeaderboardPanel(top, c, menu_items, db)
 
 # Audio Initialization
 try:
@@ -328,8 +377,5 @@ try:
     py.mixer.music.play(-1)
 except:
     print("Audio file not found or mixer error.")
-
-# Start name entry after 100ms (allows window to render first)
-top.after(100, start_game_flow)
 
 top.mainloop()
